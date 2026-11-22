@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PoliteEorzea;
+namespace CourteousEorzea;
 
 /// <summary>Chooses the next greeting or farewell, randomly or in sequence.</summary>
 public sealed class MessagePicker

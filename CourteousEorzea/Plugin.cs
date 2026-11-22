@@ -4,9 +4,9 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
-using PoliteEorzea.Windows;
+using CourteousEorzea.Windows;
 
-namespace PoliteEorzea;
+namespace CourteousEorzea;
 
 public sealed class Plugin : IDalamudPlugin
 {
@@ -22,8 +22,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
-    private const string MainCommand = "/polite";
-    private const string MainCommandAlias = "/politeeorzea";
+    private const string MainCommand = "/courteous";
+    private const string MainCommandAlias = "/courteouseorzea";
     private const string HiCommand = "/hi";
     private const string ByeCommand = "/bye";
 
@@ -31,12 +31,14 @@ public sealed class Plugin : IDalamudPlugin
     public MessagePicker Picker { get; } = new();
     public DutyWatcher Watcher { get; }
 
-    public readonly WindowSystem WindowSystem = new("PoliteEorzea");
+    public readonly WindowSystem WindowSystem = new("CourteousEorzea");
     private ConfigWindow ConfigWindow { get; }
 
     public Plugin()
     {
-        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        Configuration = PluginInterface.GetPluginConfig() as Configuration
+                        ?? Configuration.ImportFromPoliteEorzea(PluginInterface.ConfigFile.DirectoryName)
+                        ?? new Configuration();
         if (Configuration.Migrate())
             Configuration.Save();
 
@@ -47,7 +49,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(MainCommand, new CommandInfo(OnMainCommand)
         {
-            HelpMessage = "Open Polite Eorzea settings. \"/polite auto\" toggles Auto mode, \"/polite on|off\" sets it.",
+            HelpMessage = "Open Courteous Eorzea settings. \"/courteous auto\" toggles Auto mode, \"/courteous on|off\" sets it.",
         });
         CommandManager.AddHandler(MainCommandAlias, new CommandInfo(OnMainCommand) { ShowInHelp = false });
         CommandManager.AddHandler(HiCommand, new CommandInfo(OnHiCommand)
@@ -63,7 +65,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleConfigUi;
 
-        Log.Information("Polite Eorzea loaded. Auto mode: {Auto}", Configuration.AutoMode ? "on" : "off");
+        Log.Information("Courteous Eorzea loaded. Auto mode: {Auto}", Configuration.AutoMode ? "on" : "off");
     }
 
     public void Dispose()
@@ -128,7 +130,7 @@ public sealed class Plugin : IDalamudPlugin
         var text = Picker.NextGreeting(Configuration);
         if (text == null)
         {
-            Feedback("No greetings configured. Add some in /polite.", always: true);
+            Feedback("No greetings configured. Add some in /courteous.", always: true);
             return;
         }
         SendLine(text, target, auto ? "auto greeting" : "greeting");
@@ -139,7 +141,7 @@ public sealed class Plugin : IDalamudPlugin
         var text = Picker.NextFarewell(Configuration);
         if (text == null)
         {
-            Feedback("No farewells configured. Add some in /polite.", always: true);
+            Feedback("No farewells configured. Add some in /courteous.", always: true);
             return;
         }
         SendLine(text, target, auto ? "auto farewell" : "farewell");
@@ -176,6 +178,6 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!always && !Configuration.ShowFeedback)
             return;
-        ChatGui.Print(message, "Polite Eorzea");
+        ChatGui.Print(message, "Courteous Eorzea");
     }
 }

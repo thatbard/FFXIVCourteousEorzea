@@ -1,0 +1,40 @@
+[
+  {
+    "Author": "thatbard (original by ahadev)",
+    "Name": "Courteous Eorzea",
+    "InternalName": "CourteousEorzea",
+    "AssemblyVersion": "0.2.0.0",
+    "Description": "Courteous Eorzea sends a greeting or a farewell to your party (or alliance) from your own list of messages.\n\n• /hi and /bye send a random greeting or farewell right away.\n• Auto mode greets when you enter an instanced duty and says thanks when it completes.\n• Picks party or alliance chat automatically; skips solo duties.\n• Fully editable message lists, delays and triggers in /courteous.\n\nCourteous Eorzea is a modified version of Polite Eorzea by ahadev (github.com/AHAKuo/FFXIVPoliteEorzea), licensed under AGPL-3.0.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/thatbard/FFXIVCourteousEorzea",
+    "Tags": [
+      "chat",
+      "party",
+      "alliance",
+      "greeting",
+      "hello",
+      "thanks",
+      "duty",
+      "dungeon",
+      "raid",
+      "trial",
+      "social",
+      "quality-of-life",
+      "qol"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "IconUrl": "https://raw.githubusercontent.com/thatbard/FFXIVCourteousEorzea/main/images/icon.png",
+    "Punchline": "Say hello and thank your party with one command, or automatically in duties.",
+    "AcceptsFeedback": true,
+    "DownloadLinkInstall": "https://github.com/thatbard/FFXIVCourteousEorzea/releases/download/v0.2.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/thatbard/FFXIVCourteousEorzea/releases/download/v0.2.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/thatbard/FFXIVCourteousEorzea/releases/download/v0.2.0/latest.zip",
+    "LastUpdate": 1795374414,
+    "IsHide": false,
+    "IsTestingExclusive": false
+  }
+]

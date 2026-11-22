@@ -3,7 +3,7 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
 
-namespace PoliteEorzea;
+namespace CourteousEorzea;
 
 /// <summary>
 /// Auto mode: watches duty enter / start / complete and schedules the

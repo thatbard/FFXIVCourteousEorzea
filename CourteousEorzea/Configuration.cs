@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Dalamud.Configuration;
 using Newtonsoft.Json;
 
-namespace PoliteEorzea;
+namespace CourteousEorzea;
 
 public enum GreetTrigger
 {
@@ -85,6 +86,38 @@ public class Configuration : IPluginConfiguration
         "ty for the party! o/",
         "Well played, thanks all!",
     ];
+
+    /// <summary>
+    /// First run only: reads settings left behind by the original Polite Eorzea plugin
+    /// (pluginConfigs/PoliteEorzea.json) so people switching over keep their messages.
+    /// The old file is left untouched. Returns null when there is nothing usable to import.
+    /// </summary>
+    public static Configuration? ImportFromPoliteEorzea(string? configDirectory)
+    {
+        if (string.IsNullOrEmpty(configDirectory))
+            return null;
+
+        var path = Path.Combine(configDirectory, "PoliteEorzea.json");
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            // The file's "$type" names the old PoliteEorzea assembly; TypeNameHandling.None ignores it
+            // and maps the properties onto this class. Its Version (0) then runs the v1 cleanup in Migrate.
+            var imported = JsonConvert.DeserializeObject<Configuration>(
+                File.ReadAllText(path),
+                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.None });
+            if (imported != null)
+                Plugin.Log.Information("Imported settings from Polite Eorzea ({Path}).", path);
+            return imported;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning(ex, "Could not import Polite Eorzea settings from {Path}; starting fresh.", path);
+            return null;
+        }
+    }
 
     /// <summary>Upgrades an older saved config in place. Returns true when something changed.</summary>
     public bool Migrate()

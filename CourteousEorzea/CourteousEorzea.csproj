@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.1.3.0</Version>
-    <Author>ahadev</Author>
-    <Name>Polite Eorzea</Name>
+    <Version>0.2.0.0</Version>
+    <Author>thatbard (original by ahadev)</Author>
+    <Name>Courteous Eorzea</Name>
     <Punchline>Say hello and thank your party with one command, or automatically in duties.</Punchline>
-    <Description>Polite Eorzea sends a greeting or a farewell to your party (or alliance) from your own list of messages.
+    <Description>Courteous Eorzea sends a greeting or a farewell to your party (or alliance) from your own list of messages.
 
 • /hi and /bye send a random greeting or farewell right away.
 • Auto mode greets when you enter an instanced duty and says thanks when it completes.
 • Picks party or alliance chat automatically; skips solo duties.
-• Fully editable message lists, delays and triggers in /polite.</Description>
+• Fully editable message lists, delays and triggers in /courteous.
+
+Courteous Eorzea is a modified version of Polite Eorzea by ahadev (github.com/AHAKuo/FFXIVPoliteEorzea), licensed under AGPL-3.0.</Description>
     <Tags>chat;party;alliance;greeting;hello;thanks;duty;dungeon;raid;trial;social;quality-of-life;qol</Tags>
-    <RepoUrl>https://github.com/AHAKuo/FFXIVPoliteEorzea</RepoUrl>
-    <IconUrl>https://raw.githubusercontent.com/AHAKuo/FFXIVPoliteEorzea/main/images/icon.png</IconUrl>
+    <RepoUrl>https://github.com/thatbard/FFXIVCourteousEorzea</RepoUrl>
+    <IconUrl>https://raw.githubusercontent.com/thatbard/FFXIVCourteousEorzea/main/images/icon.png</IconUrl>
   </PropertyGroup>
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

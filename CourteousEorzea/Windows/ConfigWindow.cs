@@ -8,7 +8,7 @@ using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 
-namespace PoliteEorzea.Windows;
+namespace CourteousEorzea.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
@@ -19,7 +19,7 @@ public class ConfigWindow : Window, IDisposable
     private string newGreeting = string.Empty;
     private string newFarewell = string.Empty;
 
-    public ConfigWindow(Plugin plugin) : base("Polite Eorzea###PoliteEorzeaConfig")
+    public ConfigWindow(Plugin plugin) : base("Courteous Eorzea###CourteousEorzeaConfig")
     {
         this.plugin = plugin;
         Size = new Vector2(520, 620);
@@ -45,6 +45,34 @@ public class ConfigWindow : Window, IDisposable
 
         if (ImGui.CollapsingHeader("Farewells", ImGuiTreeNodeFlags.DefaultOpen))
             DrawList(Config.Farewells, ref newFarewell, "farewell");
+
+        if (ImGui.CollapsingHeader("About & license"))
+            DrawAbout();
+    }
+
+    // Appropriate Legal Notices (AGPL-3.0 section 5(d)): copyright, no warranty, license, source.
+    private static void DrawAbout()
+    {
+        ImGui.TextWrapped("Courteous Eorzea is a modified version of Polite Eorzea by ahadev.");
+        DrawLink("Original project", "https://github.com/AHAKuo/FFXIVPoliteEorzea");
+        DrawLink("Source code of this version", "https://github.com/thatbard/FFXIVCourteousEorzea");
+        ImGui.Spacing();
+        ImGui.TextWrapped("Copyright (C) 2026 ahadev (Polite Eorzea)\nModifications copyright (C) 2026 thatbard");
+        ImGui.Spacing();
+        ImGui.TextWrapped("This program is free software: you can redistribute it and/or modify it under the terms of the " +
+                          "GNU Affero General Public License as published by the Free Software Foundation, version 3. " +
+                          "It comes with ABSOLUTELY NO WARRANTY; see the license for details.");
+        DrawLink("GNU AGPL-3.0", "https://www.gnu.org/licenses/agpl-3.0.html");
+    }
+
+    private static void DrawLink(string label, string url)
+    {
+        ImGui.TextUnformatted($"{label}:");
+        ImGui.SameLine();
+        if (ImGui.SmallButton($"{url}##{label}"))
+            Dalamud.Utility.Util.OpenLink(url);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Open in your browser");
     }
 
     private void DrawAutoSection()
@@ -55,7 +83,7 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.Checkbox("Auto mode", ref auto))
                 plugin.SetAutoMode(auto);
         }
-        Tooltip("Automatically greet when you enter an instanced duty (dungeon, trial, raid, alliance raid...)\nand say thanks when it completes. Toggle from chat with /polite auto.");
+        Tooltip("Automatically greet when you enter an instanced duty (dungeon, trial, raid, alliance raid...)\nand say thanks when it completes. Toggle from chat with /courteous auto.");
 
         ImGui.SameLine();
         ImGui.TextDisabled(plugin.Watcher.Status);

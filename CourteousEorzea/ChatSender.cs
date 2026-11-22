@@ -3,7 +3,7 @@ using System.Text;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
 
-namespace PoliteEorzea;
+namespace CourteousEorzea;
 
 /// <summary>
 /// Sends text through the game's own chat box entry point, exactly as if the
