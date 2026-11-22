@@ -44,6 +44,7 @@ The full list, with dates, is in [CHANGELOG.md](CHANGELOG.md). In short:
 - **Deleted default messages no longer come back** after a relog or plugin reload ([AHAKuo/FFXIVPoliteEorzea#1](https://github.com/AHAKuo/FFXIVPoliteEorzea/issues/1)). Saved message lists also no longer collect duplicate copies of the defaults, and existing duplicates are cleaned up once.
 - Renamed to Courteous Eorzea (internal name `CourteousEorzea`, settings command `/courteous`) so it can't be mistaken for the original. Polite Eorzea settings are imported on first run.
 - Added an "About & license" section to the settings window.
+- New icon: the same speech-bubble design with "o7" (a salute) in place of "o/".
 
 ## Building
 
@@ -65,8 +66,8 @@ On Linux or WSL, point the build at the Dalamud files with `DALAMUD_HOME`, for e
 
 ## Credits
 
-- **ahadev ([AHAKuo](https://github.com/AHAKuo))**: author of [Polite Eorzea](https://github.com/AHAKuo/FFXIVPoliteEorzea), which this project is based on, including the plugin icon (`images/icon.png`).
-- **thatbard**: maintainer of this fork and its modifications.
+- **ahadev ([AHAKuo](https://github.com/AHAKuo))**: author of [Polite Eorzea](https://github.com/AHAKuo/FFXIVPoliteEorzea), which this project is based on, and of the original icon design.
+- **thatbard**: maintainer of this fork and its modifications. The current icon (`images/icon.png`, "o7" in place of "o/") was redrawn after ahadev's design.
 - [believeinyuna](https://github.com/believeinyuna), for reporting the disappearing-messages bug upstream.
 
 ## License
