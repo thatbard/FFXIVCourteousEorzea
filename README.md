@@ -83,7 +83,6 @@ On Linux or WSL, point the build at the Dalamud files with `DALAMUD_HOME`, for e
 
 - **ahadev ([AHAKuo](https://github.com/AHAKuo))**: author of [Polite Eorzea](https://github.com/AHAKuo/FFXIVPoliteEorzea), which this project is based on, and of the original icon design.
 - **thatbard**: maintainer of this fork and its modifications. The current icon (`images/icon.png`, "o7" in place of "o/") was redrawn after ahadev's design.
-- [believeinyuna](https://github.com/believeinyuna), for reporting the disappearing-messages bug upstream.
 
 ## License
 
