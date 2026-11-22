@@ -2,6 +2,13 @@
 
 Courteous Eorzea is a modified version of [Polite Eorzea](https://github.com/AHAKuo/FFXIVPoliteEorzea) by ahadev. This file records the changes made in this fork, with dates, as AGPL-3.0 section 5(a) requires. Everything before 0.1.3 is the original author's work.
 
+## 0.3.0 (2026-11-22)
+
+- **Profiles:** greetings and farewells now live in named profiles. Create, duplicate, rename and delete them in `/courteous`, and choose which one is the default.
+- **Per-character profiles:** assign a profile to the character you're playing. Characters without one use the default profile. All assignments are listed so alts can be managed from any character.
+- **Synced farewells:** each greeting can be linked to a farewell, which is then sent after that greeting instead of a random one.
+- Settings format version 2: your existing greetings and farewells become a profile named "Default". Older Polite Eorzea and Courteous Eorzea settings both migrate automatically.
+
 ## Icon update (2026-11-22)
 
 - Replaced the plugin icon with a redrawn version of the original design that shows "o7" instead of "o/". The icon is served from the repo, so this needed no new plugin version.

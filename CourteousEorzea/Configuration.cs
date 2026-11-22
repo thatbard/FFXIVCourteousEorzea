@@ -28,7 +28,7 @@ public enum ChatTarget
 public class Configuration : IPluginConfiguration
 {
     /// <summary>Bump when a migration is added in <see cref="Migrate"/>.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -63,29 +63,94 @@ public class Configuration : IPluginConfiguration
     /// <summary>Echo what the plugin did (or why it skipped) to your own chat log.</summary>
     public bool ShowFeedback { get; set; } = true;
 
-    // Dalamud deserializes with Newtonsoft.Json, whose default ObjectCreationHandling.Auto reuses the
-    // list created by the initializer below and appends the saved entries onto it. That made deleted
-    // default messages reappear (and duplicates pile up) on every load. Replace makes the saved list
-    // win outright, so the defaults are only used for a brand-new config.
-    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
-    public List<string> Greetings { get; set; } =
-    [
-        "Hello! o/",
-        "Hi everyone! :)",
-        "Hey all, good luck and have fun!",
-        "o/ Hello, hello!",
-        "Hi! Thanks for having me.",
-    ];
+    // Dalamud deserializes with Newtonsoft.Json, whose default ObjectCreationHandling.Auto reuses a
+    // collection created by an initializer/constructor and appends the saved entries onto it. That made
+    // deleted default messages reappear on every load (v0.1.2 and earlier). Every collection here and in
+    // MessageProfile uses Replace so the saved data wins outright.
 
+    /// <summary>Message profiles. Always holds at least one (see <see cref="EnsureValid"/>).</summary>
     [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
-    public List<string> Farewells { get; set; } =
-    [
-        "Thanks for the run! o/",
-        "GG, thank you all!",
-        "Thanks everyone, have a great day!",
-        "ty for the party! o/",
-        "Well played, thanks all!",
-    ];
+    public List<MessageProfile> Profiles { get; set; }
+
+    /// <summary>Profile used by any character without an assignment.</summary>
+    public Guid DefaultProfileId { get; set; }
+
+    /// <summary>Per-character profile, keyed by the character's content id.</summary>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public Dictionary<ulong, CharacterAssignment> CharacterProfiles { get; set; } = new();
+
+    // Settings saved before v2 (and Polite Eorzea's) kept one flat list of each. They are read here
+    // only so Migrate can move them into a profile, and are never written back.
+    [JsonProperty("Greetings", ObjectCreationHandling = ObjectCreationHandling.Replace, NullValueHandling = NullValueHandling.Ignore)]
+    public List<string>? LegacyGreetings { get; set; }
+
+    [JsonProperty("Farewells", ObjectCreationHandling = ObjectCreationHandling.Replace, NullValueHandling = NullValueHandling.Ignore)]
+    public List<string>? LegacyFarewells { get; set; }
+
+    public Configuration()
+    {
+        var profile = MessageProfile.CreateDefault();
+        Profiles = [profile];
+        DefaultProfileId = profile.Id;
+    }
+
+    public MessageProfile? GetProfile(Guid id) => Profiles.Find(p => p.Id == id);
+
+    [JsonIgnore]
+    public MessageProfile DefaultProfile => GetProfile(DefaultProfileId) ?? Profiles[0];
+
+    /// <summary>The profile assigned to this character, or the default profile.</summary>
+    public MessageProfile ProfileFor(ulong contentId, out bool assigned)
+    {
+        if (contentId != 0 && CharacterProfiles.TryGetValue(contentId, out var a) && GetProfile(a.ProfileId) is { } p)
+        {
+            assigned = true;
+            return p;
+        }
+        assigned = false;
+        return DefaultProfile;
+    }
+
+    /// <summary>Assigns a profile to a character; null removes the assignment (the default is used).</summary>
+    public void AssignProfile(ulong contentId, string characterName, string world, Guid? profileId)
+    {
+        if (profileId is not { } id)
+        {
+            CharacterProfiles.Remove(contentId);
+            return;
+        }
+        CharacterProfiles[contentId] = new CharacterAssignment { ProfileId = id, CharacterName = characterName, World = world };
+    }
+
+    /// <summary>Deletes a profile. The last remaining profile cannot be deleted.</summary>
+    public bool DeleteProfile(Guid id)
+    {
+        if (Profiles.Count <= 1 || GetProfile(id) is not { } profile)
+            return false;
+
+        Profiles.Remove(profile);
+        if (DefaultProfileId == id)
+            DefaultProfileId = Profiles[0].Id;
+
+        // Characters that used it fall back to the default profile.
+        var orphaned = new List<ulong>();
+        foreach (var (cid, a) in CharacterProfiles)
+        {
+            if (a.ProfileId == id)
+                orphaned.Add(cid);
+        }
+        foreach (var cid in orphaned)
+            CharacterProfiles.Remove(cid);
+        return true;
+    }
+
+    public string UniqueProfileName(string baseName)
+    {
+        var name = baseName;
+        for (var n = 2; Profiles.Exists(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)); n++)
+            name = $"{baseName} {n}";
+        return name;
+    }
 
     /// <summary>
     /// First run only: reads settings left behind by the original Polite Eorzea plugin
@@ -104,7 +169,7 @@ public class Configuration : IPluginConfiguration
         try
         {
             // The file's "$type" names the old PoliteEorzea assembly; TypeNameHandling.None ignores it
-            // and maps the properties onto this class. Its Version (0) then runs the v1 cleanup in Migrate.
+            // and maps the properties onto this class. Its Version (0) then runs the v1 and v2 migrations.
             var imported = JsonConvert.DeserializeObject<Configuration>(
                 File.ReadAllText(path),
                 new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.None });
@@ -127,14 +192,104 @@ public class Configuration : IPluginConfiguration
 
         if (Version < 1)
         {
-            // Configs saved before v1 were hit by the list-append bug above, so they can hold the
-            // default messages repeated once per load/save cycle. Collapse exact duplicates.
-            Greetings = Dedupe(Greetings);
-            Farewells = Dedupe(Farewells);
+            // Configs saved before v1 were hit by the list-append bug, so they can hold the default
+            // messages repeated once per load/save cycle. Collapse exact duplicates.
+            LegacyGreetings = Dedupe(LegacyGreetings);
+            LegacyFarewells = Dedupe(LegacyFarewells);
+        }
+
+        if (Version < 2)
+        {
+            // v2 introduced profiles: the flat lists become the "Default" profile, which the
+            // constructor already created (with the built-in messages) since the file had no Profiles.
+            var profile = MessageProfile.FromLists("Default", LegacyGreetings ?? [], LegacyFarewells ?? []);
+            if (LegacyGreetings == null && LegacyFarewells == null)
+                profile = MessageProfile.CreateDefault();
+            Profiles = [profile];
+            DefaultProfileId = profile.Id;
+            CharacterProfiles = new();
+            LegacyGreetings = null;
+            LegacyFarewells = null;
         }
 
         Version = CurrentVersion;
         return true;
+    }
+
+    /// <summary>
+    /// Repairs anything a hand-edited or partially written file could leave inconsistent.
+    /// Returns true when something changed.
+    /// </summary>
+    public bool EnsureValid()
+    {
+        var changed = false;
+
+        Profiles ??= [];
+        Profiles.RemoveAll(p => p == null);
+        CharacterProfiles ??= new();
+
+        if (Profiles.Count == 0)
+        {
+            Profiles.Add(MessageProfile.CreateDefault());
+            changed = true;
+        }
+
+        var profileIds = new HashSet<Guid>();
+        foreach (var p in Profiles)
+        {
+            if (p.Id == Guid.Empty || !profileIds.Add(p.Id))
+            {
+                p.Id = Guid.NewGuid();
+                profileIds.Add(p.Id);
+                changed = true;
+            }
+            p.Name ??= "Profile";
+            p.Greetings ??= [];
+            p.Farewells ??= [];
+            p.Greetings.RemoveAll(e => e == null);
+            p.Farewells.RemoveAll(e => e == null);
+
+            var messageIds = new HashSet<Guid>();
+            foreach (var e in p.Greetings)
+            {
+                e.Text ??= string.Empty;
+                if (e.Id == Guid.Empty || !messageIds.Add(e.Id)) { e.Id = Guid.NewGuid(); messageIds.Add(e.Id); changed = true; }
+            }
+            foreach (var e in p.Farewells)
+            {
+                e.Text ??= string.Empty;
+                e.PairedFarewellId = null;
+                if (e.Id == Guid.Empty || !messageIds.Add(e.Id)) { e.Id = Guid.NewGuid(); messageIds.Add(e.Id); changed = true; }
+            }
+            foreach (var g in p.Greetings)
+            {
+                if (g.PairedFarewellId != null && p.FindFarewell(g.PairedFarewellId) == null)
+                {
+                    g.PairedFarewellId = null;
+                    changed = true;
+                }
+            }
+        }
+
+        if (GetProfile(DefaultProfileId) == null)
+        {
+            DefaultProfileId = Profiles[0].Id;
+            changed = true;
+        }
+
+        var stale = new List<ulong>();
+        foreach (var (cid, a) in CharacterProfiles)
+        {
+            if (a == null || GetProfile(a.ProfileId) == null)
+                stale.Add(cid);
+        }
+        foreach (var cid in stale)
+        {
+            CharacterProfiles.Remove(cid);
+            changed = true;
+        }
+
+        return changed;
     }
 
     private static List<string> Dedupe(List<string>? list)

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.2.0.0</Version>
+    <Version>0.3.0.0</Version>
     <Author>thatbard (original by ahadev)</Author>
     <Name>Courteous Eorzea</Name>
     <Punchline>Say hello and thank your party with one command, or automatically in duties.</Punchline>
@@ -11,6 +11,7 @@
 • Auto mode greets when you enter an instanced duty and says thanks when it completes.
 • Picks party or alliance chat automatically; skips solo duties.
 • Fully editable message lists, delays and triggers in /courteous.
+• Sync a farewell to a greeting, keep message profiles, and give each character its own profile.
 
 Courteous Eorzea is a modified version of Polite Eorzea by ahadev (github.com/AHAKuo/FFXIVPoliteEorzea), licensed under AGPL-3.0.</Description>
     <Tags>chat;party;alliance;greeting;hello;thanks;duty;dungeon;raid;trial;social;quality-of-life;qol</Tags>

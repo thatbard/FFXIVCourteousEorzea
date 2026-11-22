@@ -3,40 +3,72 @@ using System.Collections.Generic;
 
 namespace CourteousEorzea;
 
-/// <summary>Chooses the next greeting or farewell, randomly or in sequence.</summary>
+/// <summary>
+/// Chooses the next greeting or farewell from a profile, randomly or in sequence, and remembers the
+/// last greeting sent so its synced farewell can follow it.
+/// </summary>
 public sealed class MessagePicker
 {
     private readonly Random random = new();
     private int greetIndex;
     private int byeIndex;
-    private string? lastGreet;
-    private string? lastBye;
+    private Guid? lastGreetId;
+    private Guid? lastByeId;
 
-    public string? NextGreeting(Configuration config) =>
-        Next(config.Greetings, config.RandomOrder, ref greetIndex, ref lastGreet);
+    /// <summary>The greeting most recently sent, waiting for its farewell.</summary>
+    private (Guid ProfileId, Guid GreetingId)? openGreeting;
 
-    public string? NextFarewell(Configuration config) =>
-        Next(config.Farewells, config.RandomOrder, ref byeIndex, ref lastBye);
+    public MessageEntry? NextGreeting(MessageProfile profile, bool randomOrder) =>
+        Next(profile.Greetings, randomOrder, ref greetIndex, ref lastGreetId);
 
-    private string? Next(List<string> list, bool randomOrder, ref int index, ref string? last)
+    /// <summary>
+    /// The farewell synced to the last greeting sent (from this profile), if it has one;
+    /// otherwise the next farewell picked the usual way.
+    /// </summary>
+    public MessageEntry? NextFarewell(MessageProfile profile, bool randomOrder, out bool synced)
     {
-        var candidates = new List<string>(list.Count);
-        foreach (var s in list)
+        synced = false;
+        if (openGreeting is { } open && open.ProfileId == profile.Id
+            && profile.FindGreeting(open.GreetingId) is { } greeting
+            && profile.FindFarewell(greeting.PairedFarewellId) is { } paired
+            && !string.IsNullOrWhiteSpace(paired.Text))
         {
-            if (!string.IsNullOrWhiteSpace(s))
-                candidates.Add(s.Trim());
+            synced = true;
+            lastByeId = paired.Id;
+            return paired;
+        }
+
+        return Next(profile.Farewells, randomOrder, ref byeIndex, ref lastByeId);
+    }
+
+    /// <summary>Call after a greeting actually went out.</summary>
+    public void GreetingSent(MessageProfile profile, MessageEntry greeting) => openGreeting = (profile.Id, greeting.Id);
+
+    /// <summary>Call after a farewell actually went out; the greeting it answered is closed.</summary>
+    public void FarewellSent() => openGreeting = null;
+
+    /// <summary>Forget the last greeting, e.g. on entering a new duty or logging in.</summary>
+    public void ClearOpenGreeting() => openGreeting = null;
+
+    private MessageEntry? Next(List<MessageEntry> list, bool randomOrder, ref int index, ref Guid? last)
+    {
+        var candidates = new List<MessageEntry>(list.Count);
+        foreach (var e in list)
+        {
+            if (!string.IsNullOrWhiteSpace(e.Text))
+                candidates.Add(e);
         }
 
         if (candidates.Count == 0)
             return null;
 
-        string chosen;
+        MessageEntry chosen;
         if (randomOrder)
         {
             chosen = candidates[random.Next(candidates.Count)];
 
             // Avoid repeating the same line twice in a row when we have a choice.
-            if (candidates.Count > 1 && chosen == last)
+            if (candidates.Count > 1 && chosen.Id == last)
                 chosen = candidates[(candidates.IndexOf(chosen) + 1 + random.Next(candidates.Count - 1)) % candidates.Count];
         }
         else
@@ -47,7 +79,7 @@ public sealed class MessagePicker
             index = (index + 1) % candidates.Count;
         }
 
-        last = chosen;
+        last = chosen.Id;
         return chosen;
     }
 }

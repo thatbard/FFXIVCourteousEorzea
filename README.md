@@ -37,6 +37,20 @@ Greeting timing can be either "when I load into the duty" or "when the duty star
 
 Messages go to alliance chat automatically when you are in an alliance, otherwise to party chat. You can pin a channel in the settings.
 
+## Profiles
+
+A profile is a named set of greetings and farewells. Manage them in the **Profiles** section of `/courteous`:
+
+- **Edit profile** picks which profile the Greetings and Farewells lists below are editing. The buttons next to it create a new empty profile, duplicate the current one, or delete it (hold Ctrl and click).
+- **Default profile** is used by every character that has no profile of its own.
+- **This character** assigns a profile to the character you are logged in as. Characters are recognized by their character ID, so renames and world transfers keep their profile. **Character assignments** lists every assigned character, so you can change or remove an alt's profile without logging in to it.
+
+## Synced farewells
+
+Each greeting has a dropdown that can sync a farewell to it. After that greeting is sent (by `/hi` or Auto mode), the next farewell (by `/bye` or Auto mode) is the synced one, so a pair like "Hello! o/" and "Thanks for the run! o/" always goes out together. Greetings left on **Any farewell** work as before, with a farewell picked at random or in order.
+
+A sync applies once: a second `/bye` picks normally. Entering a new duty or logging in also clears it, so a greeting from an earlier duty never decides a later farewell.
+
 ## Changes from Polite Eorzea
 
 The full list, with dates, is in [CHANGELOG.md](CHANGELOG.md). In short:
@@ -44,6 +58,7 @@ The full list, with dates, is in [CHANGELOG.md](CHANGELOG.md). In short:
 - **Deleted default messages no longer come back** after a relog or plugin reload ([AHAKuo/FFXIVPoliteEorzea#1](https://github.com/AHAKuo/FFXIVPoliteEorzea/issues/1)). Saved message lists also no longer collect duplicate copies of the defaults, and existing duplicates are cleaned up once.
 - Renamed to Courteous Eorzea (internal name `CourteousEorzea`, settings command `/courteous`) so it can't be mistaken for the original. Polite Eorzea settings are imported on first run.
 - Added an "About & license" section to the settings window.
+- Added message profiles, per-character profiles, and synced farewells (see above).
 - New icon: the same speech-bubble design with "o7" (a salute) in place of "o/".
 
 ## Building

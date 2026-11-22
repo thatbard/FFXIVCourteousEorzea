@@ -20,6 +20,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     private const string MainCommand = "/courteous";
@@ -39,7 +40,8 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration
                         ?? Configuration.ImportFromPoliteEorzea(PluginInterface.ConfigFile.DirectoryName)
                         ?? new Configuration();
-        if (Configuration.Migrate())
+        var migrated = Configuration.Migrate();
+        if (Configuration.EnsureValid() | migrated)
             Configuration.Save();
 
         ConfigWindow = new ConfigWindow(this);
@@ -61,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
             HelpMessage = "Send a random farewell to party/alliance. Optional: \"/bye p\", \"/bye a\", \"/bye s\".",
         });
 
+        ClientState.Login += OnLogin;
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleConfigUi;
@@ -70,6 +73,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        ClientState.Login -= OnLogin;
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleConfigUi;
@@ -85,6 +89,35 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();
+
+    // A greeting from a previous character should not pick this character's farewell.
+    private void OnLogin() => Picker.ClearOpenGreeting();
+
+    /// <summary>The logged-in character, or null on the title screen.</summary>
+    public static (ulong ContentId, string Name, string World)? CurrentCharacter
+    {
+        get
+        {
+            if (!PlayerState.IsLoaded || PlayerState.ContentId == 0)
+                return null;
+            var world = PlayerState.HomeWorld.IsValid ? PlayerState.HomeWorld.Value.Name.ExtractText() : string.Empty;
+            return (PlayerState.ContentId, PlayerState.CharacterName, world);
+        }
+    }
+
+    /// <summary>The profile messages come from right now: this character's, or the default.</summary>
+    public MessageProfile ActiveProfile => GetActiveProfile(out _);
+
+    public MessageProfile GetActiveProfile(out bool assignedToCharacter)
+    {
+        // Keep the stored name/world fresh for the assignment list (renames, world transfers).
+        if (CurrentCharacter is { } c && Configuration.CharacterProfiles.TryGetValue(c.ContentId, out var a))
+        {
+            a.CharacterName = c.Name;
+            if (!string.IsNullOrEmpty(c.World)) a.World = c.World;
+        }
+        return Configuration.ProfileFor(CurrentCharacter?.ContentId ?? 0, out assignedToCharacter);
+    }
 
     public void SetAutoMode(bool on)
     {
@@ -127,32 +160,38 @@ public sealed class Plugin : IDalamudPlugin
 
     public void SendGreeting(ChatTarget target, bool auto)
     {
-        var text = Picker.NextGreeting(Configuration);
-        if (text == null)
+        var profile = ActiveProfile;
+        var entry = Picker.NextGreeting(profile, Configuration.RandomOrder);
+        if (entry == null)
         {
-            Feedback("No greetings configured. Add some in /courteous.", always: true);
+            Feedback($"No greetings in profile \"{profile.Name}\". Add some in /courteous.", always: true);
             return;
         }
-        SendLine(text, target, auto ? "auto greeting" : "greeting");
+        if (SendLine(entry.Text, target, auto ? "auto greeting" : "greeting"))
+            Picker.GreetingSent(profile, entry);
     }
 
     public void SendFarewell(ChatTarget target, bool auto)
     {
-        var text = Picker.NextFarewell(Configuration);
-        if (text == null)
+        var profile = ActiveProfile;
+        var entry = Picker.NextFarewell(profile, Configuration.RandomOrder, out var synced);
+        if (entry == null)
         {
-            Feedback("No farewells configured. Add some in /courteous.", always: true);
+            Feedback($"No farewells in profile \"{profile.Name}\". Add some in /courteous.", always: true);
             return;
         }
-        SendLine(text, target, auto ? "auto farewell" : "farewell");
+        var what = (auto ? "auto farewell" : "farewell") + (synced ? " (synced)" : string.Empty);
+        if (SendLine(entry.Text, target, what))
+            Picker.FarewellSent();
     }
 
-    private void SendLine(string text, ChatTarget target, string what)
+    /// <summary>Sends one chat line. Returns true when it went out.</summary>
+    private bool SendLine(string text, ChatTarget target, string what)
     {
         if (!ClientState.IsLoggedIn)
         {
             Feedback("Not logged in.", always: true);
-            return;
+            return false;
         }
 
         var inAlliance = PartyList.IsAlliance;
@@ -167,10 +206,11 @@ public sealed class Plugin : IDalamudPlugin
         {
             Feedback($"Could not send {what}: {error}", always: true);
             Log.Warning("Send failed ({What}): {Error}", what, error);
-            return;
+            return false;
         }
 
         Log.Information("Sent {What} to {Target}: {Text}", what, ChatSender.TargetName(target, inAlliance), body);
+        return true;
     }
 
     /// <summary>Print a note to the local chat log (visible only to this player).</summary>

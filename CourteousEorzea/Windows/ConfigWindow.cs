@@ -19,15 +19,21 @@ public class ConfigWindow : Window, IDisposable
     private string newGreeting = string.Empty;
     private string newFarewell = string.Empty;
 
+    /// <summary>The profile whose messages the lists below are editing.</summary>
+    private Guid editingProfileId;
+
     public ConfigWindow(Plugin plugin) : base("Courteous Eorzea###CourteousEorzeaConfig")
     {
         this.plugin = plugin;
-        Size = new Vector2(520, 620);
+        Size = new Vector2(620, 720);
         SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(420, 300), MaximumSize = new Vector2(2000, 2000) };
     }
 
     public void Dispose() { }
+
+    // Open on the profile that is in use, which is almost always the one people want to edit.
+    public override void OnOpen() => editingProfileId = plugin.ActiveProfile.Id;
 
     private Configuration Config => plugin.Configuration;
 
@@ -40,11 +46,15 @@ public class ConfigWindow : Window, IDisposable
         DrawQuickButtons();
         ImGui.Separator();
 
-        if (ImGui.CollapsingHeader("Greetings", ImGuiTreeNodeFlags.DefaultOpen))
-            DrawList(Config.Greetings, ref newGreeting, "greeting");
+        if (ImGui.CollapsingHeader("Profiles###profiles", ImGuiTreeNodeFlags.DefaultOpen))
+            DrawProfilesSection();
 
-        if (ImGui.CollapsingHeader("Farewells", ImGuiTreeNodeFlags.DefaultOpen))
-            DrawList(Config.Farewells, ref newFarewell, "farewell");
+        var editing = EditingProfile;
+        if (ImGui.CollapsingHeader($"Greetings: {ProfileLabel(editing)}###greetings", ImGuiTreeNodeFlags.DefaultOpen))
+            DrawMessageList(editing, greetings: true, ref newGreeting);
+
+        if (ImGui.CollapsingHeader($"Farewells: {ProfileLabel(editing)}###farewells", ImGuiTreeNodeFlags.DefaultOpen))
+            DrawMessageList(editing, greetings: false, ref newFarewell);
 
         if (ImGui.CollapsingHeader("About & license"))
             DrawAbout();
@@ -168,43 +178,219 @@ public class ConfigWindow : Window, IDisposable
             plugin.SendFarewell(Config.DefaultTarget, auto: false);
     }
 
-    private void DrawList(List<string> list, ref string newEntry, string noun)
+    private MessageProfile EditingProfile
     {
+        get
+        {
+            if (Config.GetProfile(editingProfileId) is { } p)
+                return p;
+            var fallback = plugin.ActiveProfile;
+            editingProfileId = fallback.Id;
+            return fallback;
+        }
+    }
+
+    private static string ProfileLabel(MessageProfile p) => string.IsNullOrWhiteSpace(p.Name) ? "(unnamed)" : p.Name;
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+
+    private void DrawProfilesSection()
+    {
+        using var id = ImRaii.PushId("profiles");
+        var scale = ImGuiHelpers.GlobalScale;
+
+        // What is in use right now, and this character's assignment.
+        var active = plugin.GetActiveProfile(out var assigned);
+        ImGui.TextUnformatted($"In use now: {ProfileLabel(active)}");
+        ImGui.SameLine();
+        ImGui.TextDisabled(assigned ? "(assigned to this character)" : "(default profile)");
+
+        if (Plugin.CurrentCharacter is { } me)
+        {
+            Config.CharacterProfiles.TryGetValue(me.ContentId, out var mine);
+            ImGui.SetNextItemWidth(300 * scale);
+            DrawAssignmentCombo("This character", me.ContentId, me.Name, me.World, mine);
+            Tooltip($"{me.Name} @ {me.World} uses this profile. \"Default\" follows whichever profile is the default.");
+        }
+        else
+        {
+            ImGui.TextDisabled("Log in to assign a profile to the character you are playing.");
+        }
+
+        ImGui.Spacing();
+
+        // Profile being edited + new / duplicate / delete.
+        var editing = EditingProfile;
+        ImGui.SetNextItemWidth(300 * scale);
+        using (var combo = ImRaii.Combo("Edit profile", ProfileLabel(editing)))
+        {
+            if (combo)
+            {
+                foreach (var p in Config.Profiles)
+                {
+                    var tags = (p.Id == Config.DefaultProfileId ? "  (default)" : string.Empty)
+                             + (p.Id == active.Id ? "  (in use)" : string.Empty);
+                    if (ImGui.Selectable($"{ProfileLabel(p)}{tags}##{p.Id}", p.Id == editing.Id))
+                        editingProfileId = p.Id;
+                }
+            }
+        }
+        Tooltip("Choose which profile's greetings and farewells to edit below.");
+
+        ImGui.SameLine();
+        if (ImGuiComponents.IconButton(FontAwesomeIcon.Plus))
+        {
+            var p = new MessageProfile { Name = Config.UniqueProfileName("New profile") };
+            Config.Profiles.Add(p);
+            editingProfileId = p.Id;
+            Config.Save();
+        }
+        Tooltip("New empty profile");
+
+        ImGui.SameLine();
+        if (ImGuiComponents.IconButton(FontAwesomeIcon.Copy))
+        {
+            var p = editing.Duplicate(Config.UniqueProfileName($"{ProfileLabel(editing)} copy"));
+            Config.Profiles.Add(p);
+            editingProfileId = p.Id;
+            Config.Save();
+        }
+        Tooltip("Duplicate this profile, including its synced farewells");
+
+        ImGui.SameLine();
+        var canDelete = Config.Profiles.Count > 1;
+        using (ImRaii.Disabled(!canDelete || !ImGui.GetIO().KeyCtrl))
+        {
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash) && Config.DeleteProfile(editing.Id))
+            {
+                editingProfileId = plugin.ActiveProfile.Id;
+                Config.Save();
+                return;
+            }
+        }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(canDelete
+                ? "Hold Ctrl and click to delete this profile.\nCharacters using it switch to the default profile."
+                : "The last profile can't be deleted.");
+
+        var name = editing.Name;
+        ImGui.SetNextItemWidth(300 * scale);
+        if (ImGui.InputText("Profile name", ref name, 64))
+        {
+            editing.Name = name;
+            Config.Save();
+        }
+
+        var isDefault = editing.Id == Config.DefaultProfileId;
+        using (ImRaii.Disabled(isDefault))
+        {
+            if (ImGui.Checkbox("Default profile", ref isDefault) && isDefault)
+            {
+                Config.DefaultProfileId = editing.Id;
+                Config.Save();
+            }
+        }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip("Used by every character that has no profile assigned.\nTo change it, edit another profile and tick this there.");
+
+        // Every character with an assignment, so alts can be managed without logging in to them.
+        if (Config.CharacterProfiles.Count > 0 && ImGui.TreeNode($"Character assignments ({Config.CharacterProfiles.Count})###assignments"))
+        {
+            var current = Plugin.CurrentCharacter?.ContentId ?? 0;
+            foreach (var (cid, a) in new List<KeyValuePair<ulong, CharacterAssignment>>(Config.CharacterProfiles))
+            {
+                using var row = ImRaii.PushId(cid.ToString());
+                ImGui.SetNextItemWidth(200 * scale);
+                DrawAssignmentCombo(a.DisplayName + (cid == current ? " (you)" : string.Empty), cid, a.CharacterName, a.World, a);
+                ImGui.SameLine();
+                if (ImGuiComponents.IconButton(FontAwesomeIcon.Times))
+                {
+                    Config.AssignProfile(cid, a.CharacterName, a.World, null);
+                    Config.Save();
+                }
+                Tooltip("Remove this assignment (the character goes back to the default profile)");
+            }
+            ImGui.TreePop();
+        }
+    }
+
+    /// <summary>Combo choosing the profile for one character: "Default" (no assignment) or a specific profile.</summary>
+    private void DrawAssignmentCombo(string label, ulong contentId, string name, string world, CharacterAssignment? current)
+    {
+        var currentProfile = current != null ? Config.GetProfile(current.ProfileId) : null;
+        var preview = currentProfile != null ? ProfileLabel(currentProfile) : $"Default ({ProfileLabel(Config.DefaultProfile)})";
+
+        using var combo = ImRaii.Combo(label, preview);
+        if (!combo)
+            return;
+
+        if (ImGui.Selectable($"Default ({ProfileLabel(Config.DefaultProfile)})##default", currentProfile == null))
+        {
+            Config.AssignProfile(contentId, name, world, null);
+            Config.Save();
+        }
+        foreach (var p in Config.Profiles)
+        {
+            if (ImGui.Selectable($"{ProfileLabel(p)}##{p.Id}", currentProfile?.Id == p.Id))
+            {
+                Config.AssignProfile(contentId, name, world, p.Id);
+                Config.Save();
+            }
+        }
+    }
+
+    private void DrawMessageList(MessageProfile profile, bool greetings, ref string newEntry)
+    {
+        var noun = greetings ? "greeting" : "farewell";
+        var list = greetings ? profile.Greetings : profile.Farewells;
         using var id = ImRaii.PushId(noun);
+        var scale = ImGuiHelpers.GlobalScale;
+        var syncWidth = 170 * scale;
+
+        if (greetings)
+            ImGui.TextDisabled("The dropdown next to a greeting syncs a farewell to it: after that greeting, /bye and\nAuto mode send that farewell. \"Any farewell\" picks one as usual.");
 
         var removeAt = -1;
         for (var i = 0; i < list.Count; i++)
         {
-            using var rowId = ImRaii.PushId(i);
+            var entry = list[i];
+            using var rowId = ImRaii.PushId(entry.Id.ToString());
 
-            var text = list[i];
-            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 40 * ImGuiHelpers.GlobalScale);
+            var text = entry.Text;
+            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 40 * scale - (greetings ? syncWidth + ImGui.GetStyle().ItemSpacing.X : 0));
             if (ImGui.InputText("##text", ref text, 400))
             {
-                list[i] = text;
+                entry.Text = text;
                 Config.Save();
+            }
+
+            if (greetings)
+            {
+                ImGui.SameLine();
+                DrawSyncCombo(profile, entry, syncWidth);
             }
 
             ImGui.SameLine();
             if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
                 removeAt = i;
-            Tooltip($"Remove this {noun}");
+            Tooltip(greetings ? "Remove this greeting" : "Remove this farewell (greetings synced to it go back to any farewell)");
         }
 
         if (removeAt >= 0)
         {
-            list.RemoveAt(removeAt);
+            if (greetings) list.RemoveAt(removeAt);
+            else profile.RemoveFarewellAt(removeAt);
             Config.Save();
         }
 
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 40 * ImGuiHelpers.GlobalScale);
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 40 * scale);
         var submitted = ImGui.InputText("##new", ref newEntry, 400, ImGuiInputTextFlags.EnterReturnsTrue);
         ImGui.SameLine();
         if (ImGuiComponents.IconButton(FontAwesomeIcon.Plus) || submitted)
         {
             if (!string.IsNullOrWhiteSpace(newEntry))
             {
-                list.Add(newEntry.Trim());
+                list.Add(new MessageEntry(newEntry.Trim()));
                 newEntry = string.Empty;
                 Config.Save();
             }
@@ -213,6 +399,38 @@ public class ConfigWindow : Window, IDisposable
 
         if (list.Count == 0)
             ImGui.TextDisabled($"No {noun}s yet. Add one above.");
+    }
+
+    private void DrawSyncCombo(MessageProfile profile, MessageEntry greeting, float width)
+    {
+        var paired = profile.FindFarewell(greeting.PairedFarewellId);
+        var preview = paired != null ? "→ " + Truncate(paired.Text, 20) : "Any farewell";
+
+        ImGui.SetNextItemWidth(width);
+        using (var combo = ImRaii.Combo("##sync", preview))
+        {
+            if (combo)
+            {
+                if (ImGui.Selectable("Any farewell", paired == null))
+                {
+                    greeting.PairedFarewellId = null;
+                    Config.Save();
+                }
+                foreach (var f in profile.Farewells)
+                {
+                    if (string.IsNullOrWhiteSpace(f.Text))
+                        continue;
+                    if (ImGui.Selectable($"{Truncate(f.Text, 60)}##{f.Id}", paired?.Id == f.Id))
+                    {
+                        greeting.PairedFarewellId = f.Id;
+                        Config.Save();
+                    }
+                }
+                if (profile.Farewells.Count == 0)
+                    ImGui.TextDisabled("Add farewells below first.");
+            }
+        }
+        Tooltip(paired != null ? $"Synced farewell: {paired.Text}" : "No synced farewell: any farewell may follow this greeting.");
     }
 
     private static void Tooltip(string text)

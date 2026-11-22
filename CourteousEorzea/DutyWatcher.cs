@@ -78,6 +78,11 @@ public sealed class DutyWatcher : IDisposable
         pending = null;
         greetedTerritory = 0;
 
+        // A new duty starts a new conversation: a greeting from an earlier duty (left before it
+        // completed) must not decide this duty's synced farewell.
+        if (IsInstancedDuty(territory, out _))
+            plugin.Picker.ClearOpenGreeting();
+
         if (!Config.AutoMode || !Config.AutoGreet || Config.GreetTrigger != GreetTrigger.OnLoad)
             return;
 
