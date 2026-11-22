@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Dalamud.Configuration;
+using Newtonsoft.Json;
 
 namespace PoliteEorzea;
 
@@ -25,7 +26,10 @@ public enum ChatTarget
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 0;
+    /// <summary>Bump when a migration is added in <see cref="Migrate"/>.</summary>
+    public const int CurrentVersion = 1;
+
+    public int Version { get; set; } = CurrentVersion;
 
     /// <summary>Master switch for automatic greetings and farewells.</summary>
     public bool AutoMode { get; set; } = false;
@@ -58,6 +62,11 @@ public class Configuration : IPluginConfiguration
     /// <summary>Echo what the plugin did (or why it skipped) to your own chat log.</summary>
     public bool ShowFeedback { get; set; } = true;
 
+    // Dalamud deserializes with Newtonsoft.Json, whose default ObjectCreationHandling.Auto reuses the
+    // list created by the initializer below and appends the saved entries onto it. That made deleted
+    // default messages reappear (and duplicates pile up) on every load. Replace makes the saved list
+    // win outright, so the defaults are only used for a brand-new config.
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> Greetings { get; set; } =
     [
         "Hello! o/",
@@ -67,6 +76,7 @@ public class Configuration : IPluginConfiguration
         "Hi! Thanks for having me.",
     ];
 
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> Farewells { get; set; } =
     [
         "Thanks for the run! o/",
@@ -75,6 +85,38 @@ public class Configuration : IPluginConfiguration
         "ty for the party! o/",
         "Well played, thanks all!",
     ];
+
+    /// <summary>Upgrades an older saved config in place. Returns true when something changed.</summary>
+    public bool Migrate()
+    {
+        if (Version >= CurrentVersion)
+            return false;
+
+        if (Version < 1)
+        {
+            // Configs saved before v1 were hit by the list-append bug above, so they can hold the
+            // default messages repeated once per load/save cycle. Collapse exact duplicates.
+            Greetings = Dedupe(Greetings);
+            Farewells = Dedupe(Farewells);
+        }
+
+        Version = CurrentVersion;
+        return true;
+    }
+
+    private static List<string> Dedupe(List<string>? list)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>();
+        if (list == null)
+            return result;
+        foreach (var s in list)
+        {
+            if (s != null && seen.Add(s))
+                result.Add(s);
+        }
+        return result;
+    }
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 }
